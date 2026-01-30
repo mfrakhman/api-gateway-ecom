@@ -1,30 +1,84 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
-import { ProductService } from './product.service';
-import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
-import { Roles } from 'src/auth/roles.decorator';
-import { RolesGuard } from 'src/auth/roles.guard';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+import { HttpService } from '@nestjs/axios';
+import { ConfigService } from '@nestjs/config';
+import { firstValueFrom } from 'rxjs';
 
-@Controller('product')
+@Controller('products')
 export class ProductController {
-  constructor(private readonly productService: ProductService) {}
+  constructor(
+    private readonly httpService: HttpService,
+    private readonly configService: ConfigService,
+  ) {}
 
-  @UseGuards(JwtAuthGuard,RolesGuard)
-  @Roles('ADMIN')
-  @Get('admin-only')
-  findOnlyAdmin() {
-    return 'This route is restricted to admin users only.';
-  }
-
-  @UseGuards(JwtAuthGuard,RolesGuard)
-  @Roles('MERCHANT', 'ADMIN')
-  @Get('merchant-only')
-  findOnlyMerchant() {
-    return 'This route is restricted to merchant users only.';
-  }
-
-  @UseGuards(JwtAuthGuard)
+  // Products
   @Get()
-  async getAll() {
-    return this.productService.getAllProducts();
+  async getAllProducts() {
+    const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
+    const res = await firstValueFrom(this.httpService.get(`${url}/products`));
+    return res.data;
   }
+
+  @Get(':id')
+  async getProductById(@Param('id') id: string) {
+    const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
+    const res = await firstValueFrom(
+      this.httpService.get(`${url}/products/${id}`),
+    );
+    return res.data;
+  }
+
+  @Post()
+  async createProduct(@Body() body: any) {
+    const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
+    const res = await firstValueFrom(
+      this.httpService.post(`${url}/products`, body),
+    );
+    return res.data;
+  }
+
+  @Patch(':id')
+  async updateProduct(@Param('id') id: string, @Body() body: any) {
+    const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
+    const res = await firstValueFrom(
+      this.httpService.patch(`${url}/products/${id}`, body),
+    );
+    return res.data;
+  }
+
+  @Delete(':id')
+  async deleteProduct(@Param('id') id: string) {
+    const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
+    const res = await firstValueFrom(
+      this.httpService.delete(`${url}/products/${id}`),
+    );
+    return res.data;
+  }
+
+  //SKUs
+  @Post('/skus')
+  async createSKU(@Body() body: any) {
+    const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
+    const res = await firstValueFrom(
+      this.httpService.post(`${url}/skus`, body),
+    );
+    return res.data;
+  }
+
+  @Get('/skus')
+  async getAllSKUs() {
+    const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
+    const res = await firstValueFrom(this.httpService.get(`${url}/skus`));
+    return res.data;
+  }
+
+  
 }

@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
@@ -26,5 +26,10 @@ export class AuthController {
       this.httpService.post(`${authServiceUrl}/auth/register`, body),
     );
     return res.data;
+  }
+
+  @Get('ping')
+  async ping() {
+    return 'Auth Service is up and running!';
   }
 }

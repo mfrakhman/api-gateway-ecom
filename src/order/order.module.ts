@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
-import { ProductController } from './product.controller';
+import { OrderController } from './order.controller';
 import { HttpModule } from '@nestjs/axios';
 
 @Module({
   imports: [HttpModule],
-  controllers: [ProductController],
+  controllers: [OrderController],
 })
-export class ProductModule {}
+export class OrderModule {}

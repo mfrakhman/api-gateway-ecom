@@ -6,9 +6,7 @@ import { HttpModule } from '@nestjs/axios';
 import { ConfigModule } from '@nestjs/config';
 
 @Module({
-  imports: [HttpModule, ConfigModule],
-  providers: [JwtAuthGuard, RolesGuard],
-  exports: [JwtAuthGuard, RolesGuard],
+  imports: [HttpModule],
   controllers: [AuthController],
 })
 export class AuthModule {}
