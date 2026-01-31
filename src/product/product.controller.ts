@@ -11,6 +11,7 @@ import {
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
+import { ApiTags } from '@nestjs/swagger';
 
 @Controller('products')
 export class ProductController {
@@ -63,7 +64,17 @@ export class ProductController {
     return res.data;
   }
 
-  //SKUs
+  @ApiTags('SKUs')
+  @Get(':id/skus')
+  async getSKUsByProductId(@Param('id') id: string) {
+    const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
+    const res = await firstValueFrom(
+      this.httpService.get(`${url}/products/${id}/skus`),
+    );
+    return res.data;
+  }
+
+  @ApiTags('SKUs')
   @Post('/skus')
   async createSKU(@Body() body: any) {
     const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
@@ -73,12 +84,28 @@ export class ProductController {
     return res.data;
   }
 
-  @Get('/skus')
-  async getAllSKUs() {
+  @ApiTags('SKUs')
+  @Get('/skus/:id')
+  async getDetailedSKU(@Param('id') id: string) {
     const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
-    const res = await firstValueFrom(this.httpService.get(`${url}/skus`));
+    console.log(url);
+
+    const res = await firstValueFrom(this.httpService.get(`${url}/skus/${id}`));
     return res.data;
   }
 
-  
+  @ApiTags('SKUs')
+  @Post('/skus/:id/restock')
+  async reStockSKU(@Param('id') id: string, @Body() body: any) {
+    const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
+    console.log(url);
+    const res = await firstValueFrom(
+      this.httpService.post(`${url}/skus/${id}/restock`, body),
+    );
+    return res.data;
+  }
+
+  @ApiTags('SKUs')
+  @Patch()
+  async updateSKU() {}
 }
