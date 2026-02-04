@@ -12,6 +12,9 @@ import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 import { ApiTags } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 
 @Controller('products')
 export class ProductController {
@@ -38,6 +41,8 @@ export class ProductController {
   }
 
   @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   async createProduct(@Body() body: any) {
     const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
     const res = await firstValueFrom(
@@ -47,6 +52,8 @@ export class ProductController {
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   async updateProduct(@Param('id') id: string, @Body() body: any) {
     const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
     const res = await firstValueFrom(
@@ -56,6 +63,8 @@ export class ProductController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   async deleteProduct(@Param('id') id: string) {
     const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
     const res = await firstValueFrom(
@@ -76,6 +85,8 @@ export class ProductController {
 
   @ApiTags('SKUs')
   @Post('/skus')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   async createSKU(@Body() body: any) {
     const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
     const res = await firstValueFrom(
@@ -96,6 +107,8 @@ export class ProductController {
 
   @ApiTags('SKUs')
   @Post('/skus/:id/restock')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   async reStockSKU(@Param('id') id: string, @Body() body: any) {
     const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
     console.log(url);
@@ -107,5 +120,7 @@ export class ProductController {
 
   @ApiTags('SKUs')
   @Patch()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   async updateSKU() {}
 }
