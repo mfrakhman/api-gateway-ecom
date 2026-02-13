@@ -119,6 +119,16 @@ export class ProductController {
   }
 
   @ApiTags('SKUs')
+  @Post('/skus/validate')
+  async validateSkus(@Body() body: { skuIds: string[] }) {
+    const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
+    const res = await firstValueFrom(
+      this.httpService.post(`${url}/skus/validate`, body),
+    );
+    return res.data;
+  }
+
+  @ApiTags('SKUs')
   @Patch()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
