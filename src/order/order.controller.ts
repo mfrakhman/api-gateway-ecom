@@ -99,7 +99,7 @@ export class OrderController {
 
     const priceMap = new Map<string, number>(
       (validateRes.data.valid as { id: string; price: number }[]).map(
-        (s) => [s.id, s.price],
+        (s) => [s.id, parseFloat(s.price as any)],
       ),
     );
 
