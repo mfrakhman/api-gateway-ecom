@@ -5,6 +5,12 @@ import { SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.enableCors({
+    origin: ['https://ecom.mfrakhman.web.id', 'http://localhost:5173'],
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+  });
 
   const document = () =>
     SwaggerModule.createDocument(app, {
@@ -23,6 +29,7 @@ async function bootstrap() {
       components: {},
     });
   SwaggerModule.setup('api/docs', app, document());
+  app.getHttpAdapter().get('/health', (_req: any, res: any) => res.status(200).json({ status: 'ok' }));
   app.setGlobalPrefix('api');
   app.useGlobalFilters(new GatewayExceptionFilter());
   console.log('server running on port 3000');
