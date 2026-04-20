@@ -16,6 +16,7 @@ async function bootstrap() {
     .setTitle('Gateway Service API')
     .setVersion('1.0.0')
     .setDescription('API documentation for the Gateway Service')
+    .addServer('https://ecom.mfrakhman.web.id/api', 'Production server')
     .addServer('http://localhost:3000/api', 'Local server')
     .addBearerAuth()
     .build();
