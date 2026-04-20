@@ -5,6 +5,7 @@ import { AuthModule } from './auth/auth.module';
 import { HttpModule } from '@nestjs/axios';
 import { OrderModule } from './order/order.module';
 import { UpstreamModule } from './upstream/upstream.module';
+import { StorageModule } from './storage/storage.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { UpstreamModule } from './upstream/upstream.module';
     AuthModule,
     OrderModule,
     UpstreamModule,
+    StorageModule,
   ],
 })
 export class AppModule {}
