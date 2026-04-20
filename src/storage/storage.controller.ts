@@ -19,14 +19,19 @@ export class StorageController {
 
   @Get('*')
   async serveFile(@Req() req: Request, @Res() res: Response) {
-    // req.path = /storage/bucket-name/path/to/object
-    // strip leading /storage/
-    const raw = req.path.replace(/^\/storage\//, '')
-    const slash = raw.indexOf('/')
+    // req.path = /api/storage/bucket-name/path/to/object
+    const match = req.path.match(/\/storage\/(.+)/)
+    const rest = match?.[1]
+    if (!rest) throw new NotFoundException()
+
+    const slash = rest.indexOf('/')
     if (slash === -1) throw new NotFoundException()
+
+    const raw = rest
 
     const bucket = raw.slice(0, slash)
     const objectName = raw.slice(slash + 1)
+
 
     try {
       const stat = await this.minio.statObject(bucket, objectName)
