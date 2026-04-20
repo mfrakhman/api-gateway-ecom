@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { GatewayExceptionFilter } from './common/interceptors/gateway-exception.filter';
-import { SwaggerModule } from '@nestjs/swagger';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -12,22 +12,14 @@ async function bootstrap() {
     credentials: true,
   });
 
-  const document = () =>
-    SwaggerModule.createDocument(app, {
-      openapi: '3.0.0',
-      info: {
-        title: 'Gateway Service API',
-        version: '1.0.0',
-        description: 'API documentation for the Gateway Service',
-      },
-      servers: [
-        {
-          url: 'http://localhost:3000/api',
-          description: 'Local server',
-        },
-      ],
-      components: {},
-    });
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Gateway Service API')
+    .setVersion('1.0.0')
+    .setDescription('API documentation for the Gateway Service')
+    .addServer('http://localhost:3000/api', 'Local server')
+    .addBearerAuth()
+    .build();
+  const document = () => SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/docs', app, document());
   app.getHttpAdapter().get('/health', (_req: any, res: any) => res.status(200).json({ status: 'ok' }));
   app.setGlobalPrefix('api');
