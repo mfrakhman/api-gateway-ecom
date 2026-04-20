@@ -1,10 +1,8 @@
-import { Controller, Get, Param, Res } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
-import type { Response } from 'express';
-import { Client } from 'minio';
+import { Controller, Get, NotFoundException, Req, Res } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Client } from 'minio';
+import type { Request, Response } from 'express';
 
-@ApiTags('Storage')
 @Controller('storage')
 export class StorageController {
   private readonly minio: Client;
@@ -12,25 +10,33 @@ export class StorageController {
   constructor(private readonly configService: ConfigService) {
     this.minio = new Client({
       endPoint: configService.get<string>('MINIO_ENDPOINT', 'minio'),
-      port: configService.get<number>('MINIO_PORT', 9000),
+      port: Number(configService.get<number>('MINIO_PORT', 9000)),
       useSSL: configService.get<string>('MINIO_USE_SSL', 'false') === 'true',
       accessKey: configService.get<string>('MINIO_ACCESS_KEY', 'minioadmin'),
       secretKey: configService.get<string>('MINIO_SECRET_KEY', 'minioadmin'),
     });
   }
 
-  @Get(':bucket/*')
-  @ApiOperation({ summary: 'Serve stored file from MinIO' })
-  @ApiParam({ name: 'bucket', type: 'string' })
-  async serveFile(
-    @Param('bucket') bucket: string,
-    @Param('0') objectPath: string,
-    @Res() res: Response,
-  ) {
-    const stream = await this.minio.getObject(bucket, objectPath);
-    const stat = await this.minio.statObject(bucket, objectPath);
-    res.setHeader('Content-Type', stat.metaData['content-type'] ?? 'application/octet-stream');
-    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-    stream.pipe(res);
+  @Get('*')
+  async serveFile(@Req() req: Request, @Res() res: Response) {
+    // req.path = /storage/bucket-name/path/to/object
+    // strip leading /storage/
+    const raw = req.path.replace(/^\/storage\//, '')
+    const slash = raw.indexOf('/')
+    if (slash === -1) throw new NotFoundException()
+
+    const bucket = raw.slice(0, slash)
+    const objectName = raw.slice(slash + 1)
+
+    try {
+      const stat = await this.minio.statObject(bucket, objectName)
+      const stream = await this.minio.getObject(bucket, objectName)
+      res.setHeader('Content-Type', stat.metaData['content-type'] ?? 'application/octet-stream')
+      res.setHeader('Content-Length', stat.size)
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+      stream.pipe(res)
+    } catch {
+      throw new NotFoundException('File not found')
+    }
   }
 }
