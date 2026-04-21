@@ -3,8 +3,10 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -28,7 +30,7 @@ const OrderItemSchema = {
   properties: {
     skuId: { type: 'string', format: 'uuid' },
     quantity: { type: 'integer', minimum: 1 },
-    price: { type: 'number' },
+    price: { type: 'number', nullable: true },
   },
 };
 
@@ -37,7 +39,7 @@ const OrderSchema = {
   properties: {
     id: { type: 'string', format: 'uuid' },
     userId: { type: 'string', format: 'uuid' },
-    status: { type: 'string', enum: ['PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED', "COMPLETED"] },
+    status: { type: 'string', enum: ['CART', 'PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'COMPLETED'] },
     totalAmount: { type: 'number' },
     items: { type: 'array', items: OrderItemSchema },
     createdAt: { type: 'string', format: 'date-time' },
@@ -59,14 +61,10 @@ export class OrderController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all orders (admin only)' })
   @ApiResponse({ status: 200, schema: { type: 'array', items: OrderSchema } })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
   async getOrders(@Req() req: any) {
     const url = this.configService.get<string>('ORDER_SERVICE_URL');
     const res = await firstValueFrom(
-      this.httpService.get(`${url}/orders`, {
-        headers: { 'x-user-id': req.user.sub },
-      }),
+      this.httpService.get(`${url}/orders`, { headers: { 'x-user-id': req.user.sub } }),
     );
     return res.data;
   }
@@ -77,13 +75,135 @@ export class OrderController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get orders for the current authenticated user' })
   @ApiResponse({ status: 200, schema: { type: 'array', items: OrderSchema } })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
   async getMyOrders(@Req() req: any) {
     const url = this.configService.get<string>('ORDER_SERVICE_URL');
     const res = await firstValueFrom(
-      this.httpService.get(`${url}/orders/user/me`, {
-        headers: { 'x-user-id': req.user.sub },
-      }),
+      this.httpService.get(`${url}/orders/user/me`, { headers: { 'x-user-id': req.user.sub } }),
+    );
+    return res.data;
+  }
+
+  @Get('cart')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'USER')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current user cart' })
+  @ApiResponse({ status: 200, schema: OrderSchema })
+  async getCart(@Req() req: any) {
+    const url = this.configService.get<string>('ORDER_SERVICE_URL');
+    const res = await firstValueFrom(
+      this.httpService.get(`${url}/orders/cart`, { headers: { 'x-user-id': req.user.sub } }),
+    );
+    return res.data;
+  }
+
+  @Delete('cart')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'USER')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Clear current user cart' })
+  async clearCart(@Req() req: any) {
+    const url = this.configService.get<string>('ORDER_SERVICE_URL');
+    const res = await firstValueFrom(
+      this.httpService.delete(`${url}/orders/cart`, { headers: { 'x-user-id': req.user.sub } }),
+    );
+    return res.data;
+  }
+
+  @Post('cart/items')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'USER')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Add item to cart' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['skuId', 'quantity'],
+      properties: {
+        skuId: { type: 'string', format: 'uuid' },
+        quantity: { type: 'integer', minimum: 1 },
+      },
+    },
+  })
+  @ApiResponse({ status: 201, schema: OrderSchema })
+  async addCartItem(@Req() req: any, @Body() body: any) {
+    const url = this.configService.get<string>('ORDER_SERVICE_URL');
+    const res = await firstValueFrom(
+      this.httpService.post(`${url}/orders/cart/items`, body, { headers: { 'x-user-id': req.user.sub } }),
+    );
+    return res.data;
+  }
+
+  @Patch('cart/items/:skuId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'USER')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update cart item quantity' })
+  @ApiParam({ name: 'skuId', type: 'string', format: 'uuid' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['quantity'],
+      properties: { quantity: { type: 'integer', minimum: 0 } },
+    },
+  })
+  async updateCartItem(@Req() req: any, @Param('skuId') skuId: string, @Body() body: any) {
+    const url = this.configService.get<string>('ORDER_SERVICE_URL');
+    const res = await firstValueFrom(
+      this.httpService.patch(`${url}/orders/cart/items/${skuId}`, body, { headers: { 'x-user-id': req.user.sub } }),
+    );
+    return res.data;
+  }
+
+  @Delete('cart/items/:skuId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'USER')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Remove item from cart' })
+  @ApiParam({ name: 'skuId', type: 'string', format: 'uuid' })
+  async removeCartItem(@Req() req: any, @Param('skuId') skuId: string) {
+    const url = this.configService.get<string>('ORDER_SERVICE_URL');
+    const res = await firstValueFrom(
+      this.httpService.delete(`${url}/orders/cart/items/${skuId}`, { headers: { 'x-user-id': req.user.sub } }),
+    );
+    return res.data;
+  }
+
+  @Post('cart/checkout')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'USER')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Checkout cart — validates SKUs and locks prices' })
+  @ApiResponse({ status: 201, schema: OrderSchema })
+  @ApiResponse({ status: 400, description: 'Cart empty or invalid SKUs' })
+  async checkoutCart(@Req() req: any) {
+    const orderUrl = this.configService.get<string>('ORDER_SERVICE_URL');
+    const productUrl = this.configService.get<string>('PRODUCT_SERVICE_URL');
+
+    const cartRes = await firstValueFrom(
+      this.httpService.get(`${orderUrl}/orders/cart`, { headers: { 'x-user-id': req.user.sub } }),
+    );
+    const cart = cartRes.data;
+
+    if (!cart.items?.length) throw new BadRequestException('Cart is empty');
+
+    const skuIds = cart.items.map((i: any) => i.skuId);
+    const validateRes = await firstValueFrom(
+      this.httpService.post(`${productUrl}/skus/validate`, { skuIds }),
+    );
+
+    if (validateRes.data?.invalid?.length > 0) {
+      throw new BadRequestException({ message: 'Some SKUs are no longer available', invalid: validateRes.data.invalid });
+    }
+
+    const prices: Record<string, number> = Object.fromEntries(
+      (validateRes.data.valid as { id: string; price: number }[]).map(
+        s => [s.id, parseFloat(s.price as any)],
+      ),
+    );
+
+    const res = await firstValueFrom(
+      this.httpService.post(`${orderUrl}/orders/cart/checkout`, { prices }, { headers: { 'x-user-id': req.user.sub } }),
     );
     return res.data;
   }
@@ -95,14 +215,10 @@ export class OrderController {
   @ApiOperation({ summary: 'Get order by ID' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, schema: OrderSchema })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 404, description: 'Order not found' })
   async getOrder(@Param('id') id: string, @Req() req: any) {
     const url = this.configService.get<string>('ORDER_SERVICE_URL');
     const res = await firstValueFrom(
-      this.httpService.get(`${url}/orders/${id}`, {
-        headers: { 'x-user-id': req.user.sub },
-      }),
+      this.httpService.get(`${url}/orders/${id}`, { headers: { 'x-user-id': req.user.sub } }),
     );
     return res.data;
   }
@@ -111,7 +227,7 @@ export class OrderController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'USER')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create a new order' })
+  @ApiOperation({ summary: 'Create a new order directly (bypasses cart)' })
   @ApiBody({
     schema: {
       type: 'object',
@@ -132,44 +248,30 @@ export class OrderController {
     },
   })
   @ApiResponse({ status: 201, schema: OrderSchema })
-  @ApiResponse({ status: 400, description: 'Invalid SKU IDs or missing items' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
   async createOrder(@Body() body: any, @Req() req: any) {
     const items = Array.isArray(body?.items) ? body.items : [];
-    if (items.length === 0) {
-      throw new BadRequestException('items must be a non-empty array');
-    }
+    if (items.length === 0) throw new BadRequestException('items must be a non-empty array');
 
     const skuIds = items
       .map((item: { skuId?: string }) => item?.skuId)
       .filter((skuId: string | undefined): skuId is string => !!skuId);
 
-    if (skuIds.length !== items.length) {
-      throw new BadRequestException('each item must include skuId');
-    }
+    if (skuIds.length !== items.length) throw new BadRequestException('each item must include skuId');
 
     const productUrl = this.configService.get<string>('PRODUCT_SERVICE_URL');
-    if (!productUrl) {
-      throw new BadRequestException('PRODUCT_SERVICE_URL not configured');
-    }
+    if (!productUrl) throw new BadRequestException('PRODUCT_SERVICE_URL not configured');
 
     const validateRes = await firstValueFrom(
       this.httpService.post(`${productUrl}/skus/validate`, { skuIds }),
     );
 
-    if (
-      Array.isArray(validateRes.data?.invalid) &&
-      validateRes.data.invalid.length > 0
-    ) {
-      throw new BadRequestException({
-        message: 'invalid skuIds',
-        invalid: validateRes.data.invalid,
-      });
+    if (Array.isArray(validateRes.data?.invalid) && validateRes.data.invalid.length > 0) {
+      throw new BadRequestException({ message: 'invalid skuIds', invalid: validateRes.data.invalid });
     }
 
     const priceMap = new Map<string, number>(
       (validateRes.data.valid as { id: string; price: number }[]).map(
-        (s) => [s.id, parseFloat(s.price as any)],
+        s => [s.id, parseFloat(s.price as any)],
       ),
     );
 
@@ -180,9 +282,7 @@ export class OrderController {
 
     const url = this.configService.get<string>('ORDER_SERVICE_URL');
     const res = await firstValueFrom(
-      this.httpService.post(`${url}/orders`, { ...body, items: itemsWithPrice }, {
-        headers: { 'x-user-id': req.user.sub },
-      }),
+      this.httpService.post(`${url}/orders`, { ...body, items: itemsWithPrice }, { headers: { 'x-user-id': req.user.sub } }),
     );
     return res.data;
   }
