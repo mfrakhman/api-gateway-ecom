@@ -37,7 +37,7 @@ const OrderSchema = {
   properties: {
     id: { type: 'string', format: 'uuid' },
     userId: { type: 'string', format: 'uuid' },
-    status: { type: 'string', enum: ['PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED'] },
+    status: { type: 'string', enum: ['PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED', "COMPLETED"] },
     totalAmount: { type: 'number' },
     items: { type: 'array', items: OrderItemSchema },
     createdAt: { type: 'string', format: 'date-time' },

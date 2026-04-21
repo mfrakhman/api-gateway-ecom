@@ -102,11 +102,29 @@ export class ProductController {
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['name', 'description', 'category'],
+      required: ['name', 'description', 'category', 'skus'],
       properties: {
         name: { type: 'string' },
         description: { type: 'string' },
         category: { type: 'string', enum: ['BAGS', 'SHOES', 'CLOTHES', 'PANTS'] },
+        skus: {
+          type: 'array',
+          minItems: 1,
+          items: {
+            type: 'object',
+            required: ['skuCode', 'name', 'description', 'size', 'color', 'price', 'isActive', 'quantity'],
+            properties: {
+              skuCode: { type: 'string' },
+              name: { type: 'string' },
+              description: { type: 'string' },
+              size: { type: 'string' },
+              color: { type: 'string' },
+              price: { type: 'number' },
+              isActive: { type: 'boolean', default: true },
+              quantity: { type: 'integer', minimum: 1 },
+            },
+          },
+        },
       },
     },
   })
