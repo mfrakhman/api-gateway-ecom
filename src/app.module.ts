@@ -6,6 +6,7 @@ import { HttpModule } from '@nestjs/axios';
 import { OrderModule } from './order/order.module';
 import { UpstreamModule } from './upstream/upstream.module';
 import { StorageModule } from './storage/storage.module';
+import { PaymentModule } from './payment/payment.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { StorageModule } from './storage/storage.module';
     OrderModule,
     UpstreamModule,
     StorageModule,
+    PaymentModule,
   ],
 })
 export class AppModule {}
