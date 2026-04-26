@@ -1,98 +1,176 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# api-gateway
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Single entry point for all client requests. Validates JWT tokens, enforces role-based access, and proxies requests to the appropriate upstream service. Also contains the checkout orchestration logic that coordinates between product-service and order-service.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+**Tech:** NestJS · TypeScript · Axios · Passport JWT · Swagger / OpenAPI
 
-## Description
+**Exposed port:** `3000` — the only service accessible from outside Docker
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+---
 
-## Project setup
+## Routing Table
 
-```bash
-$ npm install
+| Path prefix | Upstream | Notes |
+|---|---|---|
+| `/api/auth/**` | auth-service:3001 | Login, register, refresh, me |
+| `/api/products/**` | product-service:3002 | Product catalog, image upload |
+| `/api/products/skus/**` | product-service:3002 | SKU management |
+| `/api/order/**` | order-service:3003 | Cart, orders, checkout |
+| `/api/payment/**` | payment-service:3003 | Payment status, webhook |
+
+Swagger UI: `http://localhost:3000/api/docs`
+
+---
+
+## Authentication & Authorization
+
+- JWT validation at the gateway — tokens are not forwarded raw to upstream services
+- Validated user identity is passed downstream via `x-user-id` header
+- Two roles: `ADMIN` and `USER`
+- Public routes: `/api/auth/login`, `/api/auth/register`, `/api/auth/refresh`, `/api/products` (GET), `/api/payment/webhook/qris`
+
+---
+
+## Checkout Orchestration
+
+The checkout endpoint (`POST /api/order/cart/checkout`) is the most complex operation — it runs in the gateway itself rather than a single service:
+
+```
+Client POST /api/order/cart/checkout
+  │
+  ▼
+[ API Gateway ]
+  │
+  ├── 1. GET cart from order-service
+  │        └── Validate cart is not empty
+  │
+  ├── 2. POST /skus/validate to product-service
+  │        ├── Confirm all SKUs are active
+  │        └── Fetch current prices (price lock at checkout time)
+  │
+  ├── 3. POST /orders/cart/checkout to order-service
+  │        └── Send cart items with locked prices
+  │
+  └── Return order (status: PENDING)
+        └── RabbitMQ flow continues async (stock reservation → payment)
 ```
 
-## Compile and run the project
+This ensures prices are always locked at checkout time, not at add-to-cart time.
 
-```bash
-# development
-$ npm run start
+---
 
-# watch mode
-$ npm run start:dev
+## Error Handling
 
-# production mode
-$ npm run start:prod
+| Component | Responsibility |
+|---|---|
+| `AxiosExceptionInterceptor` | Catches Axios HTTP errors from upstream services and normalizes them to consistent gateway responses |
+| `GatewayExceptionFilter` | Catches any unhandled exceptions and formats them into a uniform error response |
+
+---
+
+## API Endpoints
+
+### Auth
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/api/auth/register` | Public | Register new user |
+| POST | `/api/auth/login` | Public | Login |
+| POST | `/api/auth/refresh` | Public | Refresh access token |
+| GET | `/api/auth/me` | JWT | Get current user |
+
+### Products & SKUs
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/api/products` | Public | List all products |
+| GET | `/api/products/:id` | Public | Get product with SKUs |
+| POST | `/api/products` | Admin | Create product |
+| PATCH | `/api/products/:id` | Admin | Update product |
+| DELETE | `/api/products/:id` | Admin | Delete product |
+| POST | `/api/products/:id/image` | Admin | Upload product image |
+| GET | `/api/products/skus/:id` | Public | Get SKU detail |
+| POST | `/api/products/skus` | Admin | Create SKU |
+| POST | `/api/products/skus/:id/restock` | Admin | Restock SKU |
+| POST | `/api/products/skus/:id/image` | Admin | Upload SKU image |
+
+### Orders & Cart
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/api/order/cart` | JWT | Get cart |
+| POST | `/api/order/cart/items` | JWT | Add item to cart |
+| PATCH | `/api/order/cart/items/:skuId` | JWT | Update cart item |
+| DELETE | `/api/order/cart/items/:skuId` | JWT | Remove cart item |
+| DELETE | `/api/order/cart` | JWT | Clear cart |
+| POST | `/api/order/cart/checkout` | JWT | Checkout |
+| GET | `/api/order/user/me` | JWT | Get my orders |
+| GET | `/api/order/:id` | JWT | Get order detail |
+| GET | `/api/order` | Admin | Get all orders |
+
+### Payments
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/api/payment/order/:orderId` | JWT | Get payment & QR code |
+| POST | `/api/payment/webhook/qris` | Public | Midtrans webhook |
+
+---
+
+## Project Structure
+
+```
+gateway/
+└── src/
+    ├── auth/
+    │   ├── auth.controller.ts          # Login, register, refresh, me
+    │   ├── jwt-auth.guard.ts           # JWT validation guard
+    │   ├── roles.guard.ts              # Role enforcement guard
+    │   └── roles.decorator.ts          # @Roles('ADMIN', 'USER')
+    ├── product/
+    │   └── product.controller.ts       # Product + SKU proxy endpoints
+    ├── order/
+    │   └── order.controller.ts         # Cart + order proxy + checkout logic
+    ├── payment/
+    │   └── payment.controller.ts       # Payment status + webhook proxy
+    ├── upstream/
+    │   └── upstream.service.ts         # Shared Axios HTTP client config
+    └── common/interceptors/
+        ├── axios-exception.interceptor.ts
+        └── gateway-exception.filter.ts
 ```
 
-## Run tests
+---
 
-```bash
-# unit tests
-$ npm run test
+## Environment Variables
 
-# e2e tests
-$ npm run test:e2e
+```env
+PORT=3000
 
-# test coverage
-$ npm run test:cov
+JWT_SECRET=your_jwt_secret
+
+AUTH_SERVICE_URL=http://auth-service:3001
+PRODUCT_SERVICE_URL=http://product-service:3002
+ORDER_SERVICE_URL=http://order-service:3003
+PAYMENT_SERVICE_URL=http://payment-service:3003
 ```
 
-## Deployment
+---
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+## Running Locally
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npm install
+npm run start:dev
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Gateway runs on `http://localhost:3000`. All upstream services must be running first.
 
-## Resources
+Swagger UI available at `http://localhost:3000/api/docs`.
 
-Check out a few resources that may come in handy when working with NestJS:
+## Docker
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+```bash
+docker build -t api-gateway .
+docker run --env-file .env -p 3000:3000 api-gateway
+```
 
-## Support
+## Part of
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+[E-Commerce Microservices Platform](../README.md)
