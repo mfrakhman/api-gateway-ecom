@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -20,6 +21,7 @@ import {
   ApiConsumes,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -34,9 +36,11 @@ const ProductSchema = {
   properties: {
     id: { type: 'string', format: 'uuid' },
     name: { type: 'string' },
+    slug: { type: 'string' },
     description: { type: 'string', nullable: true },
-    category: { type: 'string', enum: ['BAGS', 'SHOES', 'CLOTHES', 'PANTS'] },
-    imageUrl: { type: 'string', nullable: true },
+    categoryId: { type: 'string', format: 'uuid' },
+    sizeGroup: { type: 'string', nullable: true },
+    isActive: { type: 'boolean' },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
   },
@@ -47,17 +51,16 @@ const SkuSchema = {
   properties: {
     id: { type: 'string', format: 'uuid' },
     skuCode: { type: 'string' },
-    name: { type: 'string' },
-    description: { type: 'string', nullable: true },
-    size: { type: 'string', nullable: true },
-    color: { type: 'string', nullable: true },
-    price: { type: 'number' },
+    colorId: { type: 'string', format: 'uuid' },
+    sizeId: { type: 'string', format: 'uuid', nullable: true },
+    price: { type: 'integer', description: 'Price in IDR' },
+    compareAt: { type: 'integer', nullable: true, description: 'Original price in IDR' },
     isActive: { type: 'boolean' },
-    imageUrl: { type: 'string', nullable: true },
     stock: {
       type: 'object',
       properties: {
-        amount: { type: 'number' },
+        amount: { type: 'integer' },
+        reserved: { type: 'integer' },
       },
     },
   },
@@ -71,25 +74,30 @@ export class ProductController {
     private readonly configService: ConfigService,
   ) {}
 
-  // Products
+  private get productUrl() {
+    return this.configService.get<string>('PRODUCT_SERVICE_URL');
+  }
+
+  // ── Products ────────────────────────────────────────────────────
+
   @Get()
   @ApiOperation({ summary: 'Get all products' })
-  @ApiResponse({ status: 200, schema: { type: 'array', items: ProductSchema } })
-  async getAllProducts() {
-    const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
-    const res = await firstValueFrom(this.httpService.get(`${url}/products`));
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'query', required: false })
+  async getAllProducts(@Query() query: any) {
+    const res = await firstValueFrom(
+      this.httpService.get(`${this.productUrl}/products`, { params: query }),
+    );
     return res.data;
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get product by ID' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  @ApiResponse({ status: 200, schema: { ...ProductSchema, properties: { ...ProductSchema.properties, skus: { type: 'array', items: SkuSchema } } } })
-  @ApiResponse({ status: 404, description: 'Product not found' })
   async getProductById(@Param('id') id: string) {
-    const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
     const res = await firstValueFrom(
-      this.httpService.get(`${url}/products/${id}`),
+      this.httpService.get(`${this.productUrl}/products/${id}`),
     );
     return res.data;
   }
@@ -102,24 +110,25 @@ export class ProductController {
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['name', 'description', 'category', 'skus'],
+      required: ['name', 'slug', 'categoryId', 'skus'],
       properties: {
         name: { type: 'string' },
+        slug: { type: 'string' },
         description: { type: 'string' },
-        category: { type: 'string', enum: ['BAGS', 'SHOES', 'CLOTHES', 'PANTS'] },
+        categoryId: { type: 'string', format: 'uuid' },
+        sizeGroup: { type: 'string', description: 'apparel | footwear_uk | waist — omit for bags' },
         skus: {
           type: 'array',
           minItems: 1,
           items: {
             type: 'object',
-            required: ['skuCode', 'name', 'description', 'size', 'color', 'price', 'isActive', 'quantity'],
+            required: ['skuCode', 'colorId', 'price', 'isActive', 'quantity'],
             properties: {
               skuCode: { type: 'string' },
-              name: { type: 'string' },
-              description: { type: 'string' },
-              size: { type: 'string' },
-              color: { type: 'string' },
-              price: { type: 'number' },
+              colorId: { type: 'string', format: 'uuid' },
+              sizeId: { type: 'string', format: 'uuid' },
+              price: { type: 'integer', description: 'Price in IDR' },
+              compareAt: { type: 'integer', description: 'Original price in IDR' },
               isActive: { type: 'boolean', default: true },
               quantity: { type: 'integer', minimum: 1 },
             },
@@ -128,11 +137,9 @@ export class ProductController {
       },
     },
   })
-  @ApiResponse({ status: 201, schema: ProductSchema })
   async createProduct(@Body() body: any) {
-    const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
     const res = await firstValueFrom(
-      this.httpService.post(`${url}/products`, body),
+      this.httpService.post(`${this.productUrl}/products`, body),
     );
     return res.data;
   }
@@ -148,17 +155,16 @@ export class ProductController {
       type: 'object',
       properties: {
         name: { type: 'string' },
+        slug: { type: 'string' },
         description: { type: 'string' },
-        category: { type: 'string', enum: ['BAGS', 'SHOES', 'CLOTHES', 'PANTS'] },
+        categoryId: { type: 'string', format: 'uuid' },
+        sizeGroup: { type: 'string' },
       },
     },
   })
-  @ApiResponse({ status: 200, schema: ProductSchema })
-  @ApiResponse({ status: 404, description: 'Product not found' })
   async updateProduct(@Param('id') id: string, @Body() body: any) {
-    const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
     const res = await firstValueFrom(
-      this.httpService.patch(`${url}/products/${id}`, body),
+      this.httpService.patch(`${this.productUrl}/products/${id}`, body),
     );
     return res.data;
   }
@@ -169,26 +175,94 @@ export class ProductController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete a product' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  @ApiResponse({ status: 200, description: 'Product deleted' })
-  @ApiResponse({ status: 404, description: 'Product not found' })
   async deleteProduct(@Param('id') id: string) {
-    const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
     const res = await firstValueFrom(
-      this.httpService.delete(`${url}/products/${id}`),
+      this.httpService.delete(`${this.productUrl}/products/${id}`),
     );
     return res.data;
   }
+
+  // ── Product color images ─────────────────────────────────────────
+
+  @Get(':productId/colors/:colorId/images')
+  @ApiOperation({ summary: 'Get images for a product colorway' })
+  async getColorImages(
+    @Param('productId') productId: string,
+    @Param('colorId') colorId: string,
+  ) {
+    const res = await firstValueFrom(
+      this.httpService.get(
+        `${this.productUrl}/products/${productId}/colors/${colorId}/images`,
+      ),
+    );
+    return res.data;
+  }
+
+  @Post(':productId/colors/:colorId/images')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
+  @ApiOperation({ summary: 'Upload image for a product colorway' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        altText: { type: 'string' },
+      },
+    },
+  })
+  async uploadColorImage(
+    @Param('productId') productId: string,
+    @Param('colorId') colorId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('altText') altText?: string,
+  ) {
+    const form = new FormData();
+    form.append('file', file.buffer, {
+      filename: file.originalname,
+      contentType: file.mimetype,
+    });
+    if (altText) form.append('altText', altText);
+    const res = await firstValueFrom(
+      this.httpService.post(
+        `${this.productUrl}/products/${productId}/colors/${colorId}/images`,
+        form,
+        { headers: form.getHeaders() },
+      ),
+    );
+    return res.data;
+  }
+
+  @Delete(':productId/colors/:colorId/images/:imageId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete a product colorway image' })
+  async deleteColorImage(
+    @Param('productId') productId: string,
+    @Param('colorId') colorId: string,
+    @Param('imageId') imageId: string,
+  ) {
+    const res = await firstValueFrom(
+      this.httpService.delete(
+        `${this.productUrl}/products/${productId}/colors/${colorId}/images/${imageId}`,
+      ),
+    );
+    return res.data;
+  }
+
+  // ── SKUs ─────────────────────────────────────────────────────────
 
   @ApiTags('SKUs')
   @Get(':id/skus')
   @ApiOperation({ summary: 'Get SKUs by product ID' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  @ApiResponse({ status: 200, schema: { type: 'array', items: SkuSchema } })
-  @ApiResponse({ status: 404, description: 'Product not found' })
   async getSKUsByProductId(@Param('id') id: string) {
-    const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
     const res = await firstValueFrom(
-      this.httpService.get(`${url}/products/${id}/skus`),
+      this.httpService.get(`${this.productUrl}/products/${id}/skus`),
     );
     return res.data;
   }
@@ -202,26 +276,22 @@ export class ProductController {
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['name', 'description', 'skuCode', 'size', 'color', 'price', 'isActive', 'product_id', 'quantity'],
+      required: ['skuCode', 'colorId', 'price', 'isActive', 'product_id', 'quantity'],
       properties: {
-        name: { type: 'string' },
-        description: { type: 'string' },
         skuCode: { type: 'string' },
-        size: { type: 'string' },
-        color: { type: 'string' },
-        price: { type: 'number' },
+        colorId: { type: 'string', format: 'uuid' },
+        sizeId: { type: 'string', format: 'uuid' },
+        price: { type: 'integer', description: 'Price in IDR' },
+        compareAt: { type: 'integer', description: 'Original price in IDR' },
         isActive: { type: 'boolean' },
         product_id: { type: 'string', format: 'uuid' },
-        quantity: { type: 'integer', minimum: 0 },
+        quantity: { type: 'integer', minimum: 1 },
       },
     },
   })
-  @ApiResponse({ status: 201, schema: SkuSchema })
-  @ApiResponse({ status: 404, description: 'Product not found' })
   async createSKU(@Body() body: any) {
-    const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
     const res = await firstValueFrom(
-      this.httpService.post(`${url}/skus`, body),
+      this.httpService.post(`${this.productUrl}/skus`, body),
     );
     return res.data;
   }
@@ -230,11 +300,10 @@ export class ProductController {
   @Get('/skus/:id')
   @ApiOperation({ summary: 'Get SKU by ID' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  @ApiResponse({ status: 200, schema: SkuSchema })
-  @ApiResponse({ status: 404, description: 'SKU not found' })
   async getDetailedSKU(@Param('id') id: string) {
-    const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
-    const res = await firstValueFrom(this.httpService.get(`${url}/skus/${id}`));
+    const res = await firstValueFrom(
+      this.httpService.get(`${this.productUrl}/skus/${id}`),
+    );
     return res.data;
   }
 
@@ -250,29 +319,9 @@ export class ProductController {
       },
     },
   })
-  @ApiResponse({
-    status: 200,
-    schema: {
-      type: 'object',
-      properties: {
-        valid: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              id: { type: 'string', format: 'uuid' },
-              price: { type: 'number' },
-            },
-          },
-        },
-        invalid: { type: 'array', items: { type: 'string', format: 'uuid' } },
-      },
-    },
-  })
   async validateSkus(@Body() body: { skuIds: string[] }) {
-    const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
     const res = await firstValueFrom(
-      this.httpService.post(`${url}/skus/validate`, body),
+      this.httpService.post(`${this.productUrl}/skus/validate`, body),
     );
     return res.data;
   }
@@ -288,105 +337,12 @@ export class ProductController {
     schema: {
       type: 'object',
       required: ['quantity'],
-      properties: {
-        quantity: { type: 'integer', minimum: 1 },
-      },
+      properties: { quantity: { type: 'integer', minimum: 1 } },
     },
   })
-  @ApiResponse({ status: 200, schema: { type: 'object', properties: { message: { type: 'string' } } } })
-  @ApiResponse({ status: 404, description: 'SKU not found' })
   async reStockSKU(@Param('id') id: string, @Body() body: any) {
-    const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
     const res = await firstValueFrom(
-      this.httpService.post(`${url}/skus/${id}/restock`, body),
-    );
-    return res.data;
-  }
-
-  // Product image
-  @Post(':id/image')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
-  @ApiBearerAuth()
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
-  @ApiOperation({ summary: 'Upload product image' })
-  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({ schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } })
-  @ApiResponse({ status: 201, schema: { type: 'object', properties: { imageUrl: { type: 'string' } } } })
-  @ApiResponse({ status: 404, description: 'Product not found' })
-  async uploadProductImage(
-    @Param('id') id: string,
-    @UploadedFile() file: Express.Multer.File,
-  ) {
-    const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
-    const form = new FormData();
-    form.append('file', file.buffer, { filename: file.originalname, contentType: file.mimetype });
-    const res = await firstValueFrom(
-      this.httpService.post(`${url}/products/${id}/image`, form, {
-        headers: form.getHeaders(),
-      }),
-    );
-    return res.data;
-  }
-
-  @Delete(':id/image')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Delete product image' })
-  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  @ApiResponse({ status: 200, description: 'Image deleted' })
-  @ApiResponse({ status: 404, description: 'Product not found' })
-  async deleteProductImage(@Param('id') id: string) {
-    const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
-    const res = await firstValueFrom(
-      this.httpService.delete(`${url}/products/${id}/image`),
-    );
-    return res.data;
-  }
-
-  // SKU image
-  @ApiTags('SKUs')
-  @Post('/skus/:id/image')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
-  @ApiBearerAuth()
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
-  @ApiOperation({ summary: 'Upload SKU image' })
-  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({ schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } })
-  @ApiResponse({ status: 201, schema: { type: 'object', properties: { imageUrl: { type: 'string' } } } })
-  @ApiResponse({ status: 404, description: 'SKU not found' })
-  async uploadSkuImage(
-    @Param('id') id: string,
-    @UploadedFile() file: Express.Multer.File,
-  ) {
-    const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
-    const form = new FormData();
-    form.append('file', file.buffer, { filename: file.originalname, contentType: file.mimetype });
-    const res = await firstValueFrom(
-      this.httpService.post(`${url}/skus/${id}/image`, form, {
-        headers: form.getHeaders(),
-      }),
-    );
-    return res.data;
-  }
-
-  @ApiTags('SKUs')
-  @Delete('/skus/:id/image')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Delete SKU image' })
-  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  @ApiResponse({ status: 200, description: 'Image deleted' })
-  @ApiResponse({ status: 404, description: 'SKU not found' })
-  async deleteSkuImage(@Param('id') id: string) {
-    const url = this.configService.get<string>('PRODUCT_SERVICE_URL');
-    const res = await firstValueFrom(
-      this.httpService.delete(`${url}/skus/${id}/image`),
+      this.httpService.post(`${this.productUrl}/skus/${id}/restock`, body),
     );
     return res.data;
   }
