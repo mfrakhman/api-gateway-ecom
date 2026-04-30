@@ -1,4 +1,9 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body, Controller, Delete, Get, Patch, Post,
+  Req, UploadedFile, UseGuards, UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import FormData from 'form-data';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
@@ -127,6 +132,76 @@ export class AuthController {
     const res = await firstValueFrom(
       this.httpService.get(`${authServiceUrl}/auth/me`, {
         headers: { Authorization: `Bearer ${req.headers['authorization']?.split(' ')[1]}` },
+      }),
+    );
+    return res.data;
+  }
+
+  @Patch('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update current user profile' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        firstName:  { type: 'string' },
+        lastName:   { type: 'string' },
+        dob:        { type: 'string', format: 'date', example: '1995-08-20' },
+        gender:     { type: 'string', enum: ['MALE', 'FEMALE'] },
+        phone:      { type: 'string', example: '+628123456789' },
+        address: {
+          type: 'object',
+          properties: {
+            street:     { type: 'string' },
+            city:       { type: 'string' },
+            province:   { type: 'string' },
+            postalCode: { type: 'string' },
+            country:    { type: 'string' },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, schema: UserSchema })
+  async updateMe(@Req() req: any, @Body() body: any) {
+    const authServiceUrl = this.configService.get<string>('AUTH_SERVICE_URL');
+    const res = await firstValueFrom(
+      this.httpService.patch(`${authServiceUrl}/auth/me`, body, {
+        headers: { Authorization: req.headers['authorization'] },
+      }),
+    );
+    return res.data;
+  }
+
+  @Post('me/photo')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Upload profile photo' })
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 3 * 1024 * 1024 } }))
+  @ApiResponse({ status: 200, schema: UserSchema })
+  async uploadPhoto(@Req() req: any, @UploadedFile() file: Express.Multer.File) {
+    const authServiceUrl = this.configService.get<string>('AUTH_SERVICE_URL');
+    const form = new FormData();
+    form.append('file', file.buffer, { filename: file.originalname, contentType: file.mimetype });
+    const res = await firstValueFrom(
+      this.httpService.post(`${authServiceUrl}/auth/me/photo`, form, {
+        headers: { ...form.getHeaders(), Authorization: req.headers['authorization'] },
+      }),
+    );
+    return res.data;
+  }
+
+  @Delete('me/photo')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Remove profile photo' })
+  @ApiResponse({ status: 200, schema: UserSchema })
+  async deletePhoto(@Req() req: any) {
+    const authServiceUrl = this.configService.get<string>('AUTH_SERVICE_URL');
+    const res = await firstValueFrom(
+      this.httpService.delete(`${authServiceUrl}/auth/me/photo`, {
+        headers: { Authorization: req.headers['authorization'] },
       }),
     );
     return res.data;
