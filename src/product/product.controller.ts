@@ -327,6 +327,33 @@ export class ProductController {
   }
 
   @ApiTags('SKUs')
+  @Patch('/skus/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update a SKU' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        skuCode:   { type: 'string' },
+        colorId:   { type: 'string', format: 'uuid' },
+        sizeId:    { type: 'string', format: 'uuid', nullable: true },
+        price:     { type: 'integer', minimum: 0 },
+        compareAt: { type: 'integer', minimum: 0, nullable: true },
+        isActive:  { type: 'boolean' },
+      },
+    },
+  })
+  async updateSKU(@Param('id') id: string, @Body() body: any) {
+    const res = await firstValueFrom(
+      this.httpService.patch(`${this.productUrl}/skus/${id}`, body),
+    );
+    return res.data;
+  }
+
+  @ApiTags('SKUs')
   @Post('/skus/:id/restock')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
