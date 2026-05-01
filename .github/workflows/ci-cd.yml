@@ -40,4 +40,4 @@ jobs:
           script: |
             cd ${{ secrets.SERVER_DEPLOY_PATH }}
             docker compose pull api-gateway
-            docker compose up -d --no-build api-gateway
+            docker compose up -d --force-recreate --no-build api-gateway
