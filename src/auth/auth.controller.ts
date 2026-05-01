@@ -128,6 +128,43 @@ export class AuthController {
     return res.data;
   }
 
+  @Post('login/otp/send')
+  @ApiOperation({ summary: 'Send OTP code for login' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['email'],
+      properties: { email: { type: 'string', format: 'email' } },
+    },
+  })
+  async sendLoginOtp(@Body() body: any) {
+    const authServiceUrl = this.configService.get<string>('AUTH_SERVICE_URL');
+    const res = await firstValueFrom(
+      this.httpService.post(`${authServiceUrl}/auth/login/otp/send`, body),
+    );
+    return res.data;
+  }
+
+  @Post('login/otp')
+  @ApiOperation({ summary: 'Verify OTP and login' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['email', 'code'],
+      properties: {
+        email: { type: 'string', format: 'email' },
+        code:  { type: 'string', example: '123456' },
+      },
+    },
+  })
+  async verifyLoginOtp(@Body() body: any) {
+    const authServiceUrl = this.configService.get<string>('AUTH_SERVICE_URL');
+    const res = await firstValueFrom(
+      this.httpService.post(`${authServiceUrl}/auth/login/otp`, body),
+    );
+    return res.data;
+  }
+
   @Post('refresh')
   @ApiOperation({ summary: 'Refresh access token' })
   @ApiBody({
