@@ -91,6 +91,43 @@ export class AuthController {
     return res.data;
   }
 
+  @Post('verify-email/send')
+  @ApiOperation({ summary: 'Send email verification OTP' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['email'],
+      properties: { email: { type: 'string', format: 'email' } },
+    },
+  })
+  async sendVerificationOtp(@Body() body: any) {
+    const authServiceUrl = this.configService.get<string>('AUTH_SERVICE_URL');
+    const res = await firstValueFrom(
+      this.httpService.post(`${authServiceUrl}/auth/verify-email/send`, body),
+    );
+    return res.data;
+  }
+
+  @Post('verify-email')
+  @ApiOperation({ summary: 'Verify email with OTP code' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['email', 'code'],
+      properties: {
+        email: { type: 'string', format: 'email' },
+        code:  { type: 'string', example: '123456' },
+      },
+    },
+  })
+  async verifyEmail(@Body() body: any) {
+    const authServiceUrl = this.configService.get<string>('AUTH_SERVICE_URL');
+    const res = await firstValueFrom(
+      this.httpService.post(`${authServiceUrl}/auth/verify-email`, body),
+    );
+    return res.data;
+  }
+
   @Post('refresh')
   @ApiOperation({ summary: 'Refresh access token' })
   @ApiBody({
