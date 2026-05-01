@@ -128,6 +128,36 @@ export class AuthController {
     return res.data;
   }
 
+  @Post('forgot-password')
+  @ApiOperation({ summary: 'Send password reset OTP' })
+  async sendForgotPasswordOtp(@Body() body: any) {
+    const authServiceUrl = this.configService.get<string>('AUTH_SERVICE_URL');
+    const res = await firstValueFrom(
+      this.httpService.post(`${authServiceUrl}/auth/forgot-password`, body),
+    );
+    return res.data;
+  }
+
+  @Post('forgot-password/verify')
+  @ApiOperation({ summary: 'Verify reset OTP and get reset token' })
+  async verifyForgotPasswordOtp(@Body() body: any) {
+    const authServiceUrl = this.configService.get<string>('AUTH_SERVICE_URL');
+    const res = await firstValueFrom(
+      this.httpService.post(`${authServiceUrl}/auth/forgot-password/verify`, body),
+    );
+    return res.data;
+  }
+
+  @Post('reset-password')
+  @ApiOperation({ summary: 'Reset password using reset token' })
+  async resetPassword(@Body() body: any) {
+    const authServiceUrl = this.configService.get<string>('AUTH_SERVICE_URL');
+    const res = await firstValueFrom(
+      this.httpService.post(`${authServiceUrl}/auth/reset-password`, body),
+    );
+    return res.data;
+  }
+
   @Post('login/otp/send')
   @ApiOperation({ summary: 'Send OTP code for login' })
   @ApiBody({
