@@ -203,7 +203,9 @@ export class OrderController {
     );
 
     const res = await firstValueFrom(
-      this.httpService.post(`${orderUrl}/orders/cart/checkout`, { prices }, { headers: { 'x-user-id': req.user.sub } }),
+      this.httpService.post(`${orderUrl}/orders/cart/checkout`, { prices }, {
+        headers: { 'x-user-id': req.user.sub, 'x-user-email': req.user.email },
+      }),
     );
     return res.data;
   }
@@ -282,7 +284,9 @@ export class OrderController {
 
     const url = this.configService.get<string>('ORDER_SERVICE_URL');
     const res = await firstValueFrom(
-      this.httpService.post(`${url}/orders`, { ...body, items: itemsWithPrice }, { headers: { 'x-user-id': req.user.sub } }),
+      this.httpService.post(`${url}/orders`, { ...body, items: itemsWithPrice }, {
+        headers: { 'x-user-id': req.user.sub, 'x-user-email': req.user.email },
+      }),
     );
     return res.data;
   }
