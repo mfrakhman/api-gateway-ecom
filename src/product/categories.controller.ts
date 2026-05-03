@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
@@ -29,10 +30,14 @@ export class CategoriesController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get full category tree' })
-  async getTree() {
+  @ApiOperation({ summary: 'Get categories (filterable by genderId or groupId)' })
+  async getAll(@Query('genderId') genderId?: string, @Query('groupId') groupId?: string) {
+    const params = new URLSearchParams();
+    if (genderId) params.set('genderId', genderId);
+    if (groupId) params.set('groupId', groupId);
+    const qs = params.toString() ? `?${params}` : '';
     const res = await firstValueFrom(
-      this.httpService.get(`${this.productUrl}/categories`),
+      this.httpService.get(`${this.productUrl}/categories${qs}`),
     );
     return res.data;
   }
