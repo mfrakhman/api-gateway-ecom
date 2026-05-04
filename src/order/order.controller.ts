@@ -176,7 +176,7 @@ export class OrderController {
   @ApiOperation({ summary: 'Checkout cart — validates SKUs and locks prices' })
   @ApiResponse({ status: 201, schema: OrderSchema })
   @ApiResponse({ status: 400, description: 'Cart empty or invalid SKUs' })
-  async checkoutCart(@Req() req: any) {
+  async checkoutCart(@Req() req: any, @Body() body: { deliveryAddress?: Record<string, any> }) {
     const orderUrl = this.configService.get<string>('ORDER_SERVICE_URL');
     const productUrl = this.configService.get<string>('PRODUCT_SERVICE_URL');
 
@@ -203,7 +203,7 @@ export class OrderController {
     );
 
     const res = await firstValueFrom(
-      this.httpService.post(`${orderUrl}/orders/cart/checkout`, { prices }, {
+      this.httpService.post(`${orderUrl}/orders/cart/checkout`, { prices, deliveryAddress: body.deliveryAddress }, {
         headers: { 'x-user-id': req.user.sub, 'x-user-email': req.user.email },
       }),
     );
